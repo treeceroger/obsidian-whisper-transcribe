@@ -1,0 +1,10 @@
+{
+  "id": "voice-notes-transcription",
+  "name": "Voice Notes Transcription",
+  "version": "0.1.0",
+  "minAppVersion": "0.15.0",
+  "description": "Voice-activated note transcription using local Ollama Whisper model",
+  "author": "Your Name",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}

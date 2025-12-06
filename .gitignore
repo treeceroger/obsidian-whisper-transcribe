@@ -1,0 +1,38 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/*.so
+backend/*.egg
+backend/*.egg-info/
+backend/dist/
+backend/build/
+
+# Node
+plugin/node_modules/
+plugin/main.js
+plugin/*.js.map
+plugin/.DS_Store
+
+# Obsidian
+plugin/data.json
+
+# Temporary files
+*.wav
+*.tmp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

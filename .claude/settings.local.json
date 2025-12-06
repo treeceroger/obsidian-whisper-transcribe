@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskkill:*)",
+      "Bash(ollama rm:*)",
+      "Bash(ollama pull:*)",
+      "Bash(ollama list:*)",
+      "Bash(ollama run:*)",
+      "Bash(timeout 10 ollama run:*)",
+      "Bash(./venv/Scripts/pip.exe install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

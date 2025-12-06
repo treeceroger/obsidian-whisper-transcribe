@@ -1,0 +1,60 @@
+/* Voice Notes Transcription Plugin Styles */
+
+/* Recording indicator in ribbon */
+.voice-notes-recording {
+    color: var(--text-error) !important;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Listen mode active indicator in ribbon */
+.voice-notes-listen-mode-active {
+    color: var(--text-accent) !important;
+    animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes glow {
+    0%, 100% {
+        opacity: 1;
+        filter: brightness(1);
+    }
+    50% {
+        opacity: 0.8;
+        filter: brightness(1.3);
+    }
+}
+
+/* Status messages in settings */
+.voice-notes-status {
+    margin-top: 1em;
+    padding: 0.5em;
+    border-radius: 4px;
+    background-color: var(--background-secondary);
+}
+
+.voice-notes-status-success {
+    color: var(--text-success);
+}
+
+.voice-notes-status-error {
+    color: var(--text-error);
+}
+
+.voice-notes-status-hint {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+/* Settings page */
+.voice-notes-setting {
+    margin-bottom: 1em;
+}
