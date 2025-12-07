@@ -37,15 +37,23 @@ recording_state = {
 listen_mode_state = {
     'enabled': False,
     'is_listening': False,
-    'is_recording_from_wake': False
+    'is_recording_from_wake': False,
+    'streaming_chunks': [],  # Buffer for streaming chunks
+    'last_chunk_id': 0  # Incrementing ID for chunks
+}
+
+# Audio device configuration
+audio_config = {
+    'device_id': None  # None = use default device
 }
 
 # Initialize Whisper client
 whisper_client = None
 wake_listener = None
+audio_stream = None
 
 
-def init_whisper(model_size: str = "base.en"):
+def init_whisper(model_size: str = "small.en"):
     """Initialize Whisper client with configuration"""
     global whisper_client, wake_listener
     whisper_client = WhisperClient(model_size=model_size)
@@ -55,18 +63,22 @@ def init_whisper(model_size: str = "base.en"):
         wake_listener = WakeWordListener(
             whisper_client,
             wake_phrase="obsidian note",
-            stop_phrase="obsidian stop"
+            stop_phrase="obsidian stop",
+            streaming_mode=True,  # Enable streaming mode
+            device_id=audio_config['device_id']  # Use configured device
         )
         # Set up callbacks
         wake_listener.on_wake_detected = on_wake_phrase_detected
         wake_listener.on_stop_detected = on_stop_phrase_detected
         wake_listener.on_transcription_complete = on_wake_transcription_complete
+        wake_listener.on_chunk_transcribed = on_chunk_transcribed  # Streaming callback
 
 
 def on_wake_phrase_detected():
     """Callback when wake phrase is detected"""
     global listen_mode_state
     listen_mode_state['is_recording_from_wake'] = True
+    listen_mode_state['streaming_chunks'] = []  # Clear chunks for new recording
     print("[SERVICE] Wake phrase detected - recording started")
 
 
@@ -82,6 +94,24 @@ def on_wake_transcription_complete(transcription: str):
     global recording_state
     recording_state['last_transcription'] = transcription
     print(f"[SERVICE] Wake word transcription complete: {transcription}")
+
+
+def on_chunk_transcribed(chunk: str):
+    """Callback when a chunk is transcribed in streaming mode"""
+    global listen_mode_state
+    listen_mode_state['last_chunk_id'] += 1
+    chunk_data = {
+        'id': listen_mode_state['last_chunk_id'],
+        'text': chunk,
+        'timestamp': datetime.now().isoformat()
+    }
+    listen_mode_state['streaming_chunks'].append(chunk_data)
+
+    # Keep only last 100 chunks to prevent memory issues
+    if len(listen_mode_state['streaming_chunks']) > 100:
+        listen_mode_state['streaming_chunks'] = listen_mode_state['streaming_chunks'][-100:]
+
+    print(f"[SERVICE] Chunk transcribed: {chunk}")
 
 
 def audio_callback(indata, frames, time_info, status):
@@ -104,7 +134,82 @@ def status():
         'is_recording': recording_state['is_recording'] or listen_mode_state['is_recording_from_wake'],
         'listen_mode_enabled': listen_mode_state['enabled'],
         'listen_mode_listening': listen_mode_state['is_listening'],
+        'selected_device_id': audio_config['device_id'],
         'timestamp': datetime.now().isoformat()
+    })
+
+
+@app.route('/audio-devices', methods=['GET'])
+def get_audio_devices():
+    """Get list of available audio input devices"""
+    try:
+        devices = sd.query_devices()
+        input_devices = []
+
+        # Get default input device index
+        try:
+            default_input_device = sd.default.device[0] if isinstance(sd.default.device, (list, tuple)) else None
+        except:
+            default_input_device = None
+
+        for idx, device in enumerate(devices):
+            # Only include input devices (with input channels)
+            if device['max_input_channels'] > 0:
+                input_devices.append({
+                    'id': idx,
+                    'name': device['name'],
+                    'channels': device['max_input_channels'],
+                    'sample_rate': int(device['default_samplerate']),
+                    'is_default': idx == default_input_device if default_input_device is not None else False
+                })
+
+        print(f"[AUDIO] Found {len(input_devices)} input devices")
+
+        return jsonify({
+            'devices': input_devices,
+            'selected_device_id': audio_config['device_id']
+        })
+    except Exception as e:
+        print(f"[AUDIO] Error querying devices: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to query audio devices: {str(e)}'}), 500
+
+
+@app.route('/audio-device', methods=['POST'])
+def set_audio_device():
+    """Set the audio input device to use"""
+    global audio_config, wake_listener
+
+    data = request.json
+    device_id = data.get('device_id')
+
+    # Validate device_id
+    if device_id is not None:
+        try:
+            devices = sd.query_devices()
+            if device_id < 0 or device_id >= len(devices):
+                return jsonify({'error': 'Invalid device ID'}), 400
+
+            device = devices[device_id]
+            if device['max_input_channels'] <= 0:
+                return jsonify({'error': 'Device is not an input device'}), 400
+
+        except Exception as e:
+            return jsonify({'error': f'Failed to validate device: {str(e)}'}), 500
+
+    # Update configuration
+    audio_config['device_id'] = device_id
+
+    # Restart wake listener if it's running
+    if wake_listener and listen_mode_state['enabled']:
+        wake_listener.stop_listening()
+        wake_listener.device_id = device_id
+        wake_listener.start_listening()
+
+    return jsonify({
+        'status': 'updated',
+        'device_id': device_id
     })
 
 
@@ -234,6 +339,24 @@ def get_last_transcription():
         return jsonify({'error': 'No transcription available'}), 404
 
 
+@app.route('/streaming-chunks', methods=['GET'])
+def get_streaming_chunks():
+    """Get streaming transcription chunks since last check"""
+    since_id = request.args.get('since_id', 0, type=int)
+
+    # Get chunks with ID greater than since_id
+    new_chunks = [
+        chunk for chunk in listen_mode_state['streaming_chunks']
+        if chunk['id'] > since_id
+    ]
+
+    return jsonify({
+        'chunks': new_chunks,
+        'latest_id': listen_mode_state['last_chunk_id'],
+        'is_recording': listen_mode_state['is_recording_from_wake']
+    })
+
+
 @app.route('/config', methods=['POST'])
 def update_config():
     """Update Whisper configuration"""
@@ -250,13 +373,19 @@ def update_config():
 
 def start_audio_stream():
     """Start the audio input stream"""
+    global audio_stream
     print("Starting audio stream...")
+    device_name = "default" if audio_config['device_id'] is None else f"device {audio_config['device_id']}"
+    print(f"Using audio device: {device_name}")
+
     with sd.InputStream(
+        device=audio_config['device_id'],  # Use configured device
         callback=audio_callback,
         channels=CHANNELS,
         samplerate=SAMPLE_RATE,
         dtype=np.int16
-    ):
+    ) as stream:
+        audio_stream = stream
         print("Audio stream started. Press Ctrl+C to stop.")
         # Keep the stream open
         while True:
@@ -270,13 +399,13 @@ if __name__ == '__main__':
 
     # Initialize Whisper client
     print("\nInitializing Whisper model...")
-    # Options: tiny, base, small, medium, large
-    # Recommended: small for good balance of speed and accuracy
-    init_whisper(model_size="base.en")
+    # Options: tiny, base.en, small.en, medium.en, large
+    # Upgraded to small.en for better wake word recognition
+    init_whisper(model_size="small.en")
 
     # Check Whisper status
     if whisper_client and whisper_client.check_health():
-        print("[OK] Whisper tiny model loaded and ready")
+        print("[OK] Whisper small.en model loaded and ready")
     else:
         print("[WARN] Whisper model failed to load")
         print("  The model will download automatically on first use")
