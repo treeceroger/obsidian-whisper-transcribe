@@ -1,80 +1,98 @@
 # Voice-to-Obsidian Transcription Application Requirements
 
 ## Overview
-A lightweight voice-activated Obsidian plugin that listens for keyword commands, transcribes speech to text using Ollama (dimavz/whisper-tiny), and appends entries to a note file with timestamps.
+A lightweight voice-activated Obsidian plugin that listens for keyword commands, transcribes speech to text using faster-whisper (small.en model), and appends entries to a note file with timestamps in real-time.
 
 **CRITICAL REQUIREMENTS**:
 - Application must run as an Obsidian plugin
-- Use dimavz/whisper-tiny model running in Ollama locally
+- Use faster-whisper library with small.en model (no Ollama required)
+- Real-time streaming transcription
 - Lightweight implementation for personal use only
 - Simple deployment to multiple personal computers
+- Support microphone selection
 
 ## Functional Requirements
 
-### 1. Wake Word Detection
-- **FR-1.1**: Application must continuously listen for the wake phrase "computer start note"
+### 1. Wake Word Detection ✅ IMPLEMENTED
+- **FR-1.1**: Application must continuously listen for the wake phrase "Obsidian Note"
 - **FR-1.2**: Must operate in the background without interfering with other applications
 - **FR-1.3**: Wake word detection must be local (no cloud dependencies)
 - **FR-1.4**: Must have low false-positive rate to avoid accidental triggers
+- **FR-1.5**: Visual indicator (ear icon) shows when listening mode is active
 
-### 2. Voice Recording & Transcription
+### 2. Voice Recording & Transcription ✅ IMPLEMENTED
 - **FR-2.1**: Upon detecting wake phrase, begin recording audio input
 - **FR-2.2**: Provide visual/audio feedback that recording has started
-- **FR-2.3**: Transcribe audio to text using local speech-to-text model
+- **FR-2.3**: Transcribe audio to text using local speech-to-text model (faster-whisper)
 - **FR-2.4**: Continue recording until stop phrase is detected
-- **FR-2.5**: Listen for stop phrase "computer end note" to end transcription
-- **FR-2.6**: Process final transcription after stop phrase detected
+- **FR-2.5**: Listen for stop phrase "Obsidian Stop" to end transcription
+- **FR-2.6**: Stream transcription chunks in real-time (~3 second intervals)
 
-### 3. Obsidian Integration
+### 3. Obsidian Integration ✅ IMPLEMENTED
 - **FR-3.1**: Append transcribed text to a designated Obsidian note file
 - **FR-3.2**: Each note entry must include a timestamp in format: `[YYYY-MM-DD HH:MM:SS]`
 - **FR-3.3**: All notes should be stored in the same file
 - **FR-3.4**: Preserve existing file content when appending new entries
 - **FR-3.5**: Support configurable Obsidian vault path
 - **FR-3.6**: Support configurable target note filename
+- **FR-3.7**: Stream chunks in real-time to Obsidian as user speaks
 
-### 4. Note Format
+### 4. Note Format ✅ IMPLEMENTED
 - **FR-4.1**: Each entry format:
   ```
   ## [YYYY-MM-DD HH:MM:SS]
-  [Transcribed text content]
+  [Transcribed text content appears in real-time]
 
   ```
 - **FR-4.2**: Entries should be separated by blank lines for readability
 
-### 5. Obsidian Plugin Integration
+### 5. Obsidian Plugin Integration ✅ IMPLEMENTED
 - **FR-5.1**: Must be installable as an Obsidian community plugin or manually installed plugin
 - **FR-5.2**: Plugin settings panel within Obsidian for configuration
 - **FR-5.3**: Status indicator in Obsidian UI showing listening/recording/processing states
-- **FR-5.4**: Ribbon icon or command palette command to enable/disable voice listening
+- **FR-5.4**: Ribbon icons for microphone and listen mode controls
 - **FR-5.5**: Plugin must integrate with Obsidian's file system API
 - **FR-5.6**: Compatible with Obsidian desktop application (Windows/Mac/Linux)
+- **FR-5.7**: Pre-compiled JavaScript (no Node.js build step required)
+
+### 6. Microphone Selection ✅ IMPLEMENTED
+- **FR-6.1**: Display all available input devices in plugin settings
+- **FR-6.2**: Allow user to select specific microphone
+- **FR-6.3**: Support physical and virtual audio devices
+- **FR-6.4**: Refresh devices list on demand
+- **FR-6.5**: Auto-restart listening when device changes
 
 ## Technical Requirements
 
-### 1. Speech Recognition
-- **TR-1.1**: Use Ollama API with dimavz/whisper-tiny model
-- **TR-1.2**: Ollama must be running locally (http://localhost:11434 by default)
-- **TR-1.3**: Support for English language
+### 1. Speech Recognition ✅ IMPLEMENTED
+- **TR-1.1**: Use faster-whisper library directly (no Ollama)
+- **TR-1.2**: Default model: small.en (244MB)
+- **TR-1.3**: Support for English language (configurable for others)
 - **TR-1.4**: Accept WAV audio format for transcription
+- **TR-1.5**: Model downloads automatically on first use
+- **TR-1.6**: CPU-based inference with int8 quantization
 
-### 2. Wake Word Detection
-- **TR-2.1**: Use lightweight wake word detection library (e.g., Porcupine, Snowboy, or pvporcupine)
-- **TR-2.2**: Low CPU usage during idle listening (<5% CPU)
-- **TR-2.3**: Low memory footprint (<100MB RAM during idle)
+### 2. Wake Word Detection ✅ IMPLEMENTED
+- **TR-2.1**: Use continuous 3-second chunk transcription for wake word detection
+- **TR-2.2**: Wake phrases: "Obsidian Note" / "Obsidian Stop"
+- **TR-2.3**: Reasonable CPU usage during listening
+- **TR-2.4**: Upgrade to medium.en model for better accuracy if needed
 
-### 3. Audio Processing
-- **TR-3.1**: Support standard audio input devices (microphone)
-- **TR-3.2**: Sample rate: 16kHz minimum
-- **TR-3.3**: Audio format: WAV or compatible with transcription model
-- **TR-3.4**: Handle background noise appropriately
+### 3. Audio Processing ✅ IMPLEMENTED
+- **TR-3.1**: Support all audio input devices via sounddevice library
+- **TR-3.2**: Sample rate: 16kHz
+- **TR-3.3**: Audio format: WAV (16-bit PCM)
+- **TR-3.4**: Mono channel audio
+- **TR-3.5**: Device selection via plugin settings
+- **TR-3.6**: Support for virtual audio cables
 
-### 4. Platform & Dependencies
-- **TR-4.1**: Platform: Windows (primary), cross-platform support nice-to-have
+### 4. Platform & Dependencies ✅ IMPLEMENTED
+- **TR-4.1**: Platform: Windows (primary), cross-platform capable
 - **TR-4.2**: Obsidian desktop application (v0.15.0+)
-- **TR-4.3**: Ollama installed and running locally with dimavz/whisper-tiny model
-- **TR-4.4**: Python 3.8+ for lightweight backend service
-- **TR-4.5**: Minimal dependencies - keep installation simple
+- **TR-4.3**: Python 3.8+ for backend service
+- **TR-4.4**: No Ollama required
+- **TR-4.5**: No Node.js required (plugin pre-compiled)
+- **TR-4.6**: Minimal dependencies - binary wheels only (no compilation)
 
 ### 5. Configuration
 - **TR-5.1**: Plugin settings accessible via Obsidian settings panel:

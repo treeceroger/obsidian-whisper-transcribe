@@ -1,13 +1,16 @@
 # Voice Notes Transcription for Obsidian
 
-A lightweight voice-activated note-taking system for Obsidian using local Ollama Whisper transcription.
+A lightweight voice-activated note-taking system for Obsidian using local faster-whisper transcription.
 
 ## 🎯 Features
 
 - **Voice-to-Text**: Speak your thoughts, get them transcribed instantly
+- **Wake Word Detection**: Say "Obsidian Note" to start, "Obsidian Stop" to finish
+- **Real-time Streaming**: See your words appear in Obsidian as you speak
 - **Obsidian Integration**: Native plugin with UI controls
-- **Local & Private**: 100% local processing using Ollama
+- **Local & Private**: 100% local processing using faster-whisper (no internet required)
 - **Timestamped Notes**: Every entry includes automatic timestamps
+- **Microphone Selection**: Choose from any available input device
 - **Single File**: All voice notes organized in one markdown file
 - **Lightweight**: Minimal dependencies, simple setup
 
@@ -17,7 +20,7 @@ Before installation, make sure you have:
 
 1. **Obsidian** (desktop app, v0.15.0+)
 2. **Python 3.8+**
-3. **Ollama** with the `dimavz/whisper-tiny` model
+3. ~~**Ollama**~~ **NOT NEEDED!** Uses faster-whisper instead
 4. ~~**Node.js**~~ **NOT NEEDED!** Plugin is pre-compiled!
 
 ## 🚀 Quick Start (Automated Installer)
@@ -32,8 +35,9 @@ Before installation, make sure you have:
 Or just **double-click** `install-simple.bat`!
 
 The installer will:
-- ✓ Check Python and Ollama
+- ✓ Check Python installation
 - ✓ Set up Python backend (venv + dependencies)
+- ✓ Download faster-whisper model (small.en by default)
 - ✓ Auto-detect your Obsidian vault
 - ✓ Copy pre-compiled plugin files
 - ✓ Offer to start the backend
@@ -45,13 +49,7 @@ The installer will:
 <details>
 <summary>Click to expand manual steps</summary>
 
-#### Step 1: Ensure Ollama Model
-
-```bash
-ollama pull dimavz/whisper-tiny
-```
-
-#### Step 2: Set Up Backend Service
+#### Step 1: Set Up Backend Service
 
 ```bash
 cd backend
@@ -80,14 +78,20 @@ Copy these files from `plugin/` to your vault:
 
 ### Recording a Voice Note
 
-**Option 1: Ribbon Icon**
+**Option 1: Wake Word Detection (Recommended)**
+1. Click the ear icon in the left sidebar to enable Listen Mode
+2. Say **"Obsidian Note"** to start recording
+3. Speak your note - you'll see your words appear in real-time!
+4. Say **"Obsidian Stop"** to finish
+
+**Option 2: Manual Recording (Ribbon Icon)**
 1. Click the microphone icon in the left sidebar
 2. Speak your note
 3. Click again to stop and transcribe
 
-**Option 2: Command Palette**
+**Option 3: Command Palette**
 1. Press `Ctrl+P` (or `Cmd+P`)
-2. Type "Toggle Voice Recording"
+2. Type "Toggle Voice Recording" or "Toggle Listen Mode"
 3. Speak your note
 4. Run command again to stop
 
@@ -95,9 +99,17 @@ Copy these files from `plugin/` to your vault:
 
 Watch the status bar (bottom right):
 - 🎤 **Ready** - Ready to record
+- 👂 **Listening...** - Wake word mode active, waiting for "Obsidian Note"
 - 🔴 **Recording** - Currently recording your voice
-- ⏳ **Processing** - Sending to Ollama for transcription
+- ⏳ **Processing** - Transcribing audio
 - ✓ **Transcribed** - Successfully saved to your notes
+
+### Real-time Streaming
+
+When using wake word detection, your transcription appears **as you speak**:
+- Text is transcribed in ~3-second chunks
+- Each chunk appears immediately in your note
+- No waiting until you finish speaking!
 
 ### Output Format
 
@@ -105,7 +117,7 @@ All transcriptions are saved to `Voice Notes.md` (configurable):
 
 ```markdown
 ## [2024-12-06 14:30:45]
-Your transcribed voice note appears here.
+Your transcribed voice note appears here in real-time as you speak.
 
 ## [2024-12-06 14:35:22]
 Another note with its own timestamp.
@@ -116,32 +128,35 @@ Another note with its own timestamp.
 Access settings via: **Settings → Voice Notes Transcription**
 
 - **Backend Service URL**: Default `http://localhost:8765`
-- **Ollama URL**: Default `http://localhost:11434`
-- **Model Name**: Default `dimavz/whisper-tiny`
 - **Voice Notes File**: Default `Voice Notes.md`
+- **Wake Phrase**: "Obsidian Note" (currently fixed)
+- **Stop Phrase**: "Obsidian Stop" (currently fixed)
+- **Microphone**: Select from any available input device
+  - Includes all physical and virtual audio devices
+  - Auto-restarts listening when changed
+  - System Default option available
 
 ## 📁 Project Structure
 
 ```
 Transcribe/
-├── backend/               # Python transcription service
-│   ├── service.py        # Main Flask server
-│   ├── ollama_client.py  # Ollama API client
-│   ├── requirements.txt  # Python dependencies
-│   ├── start.bat         # Windows startup script
-│   └── README.md
+├── backend/                      # Python transcription service
+│   ├── service.py               # Main Flask server
+│   ├── whisper_client.py        # Faster-Whisper client
+│   ├── wake_word_listener.py    # Wake word detection
+│   ├── requirements.txt         # Python dependencies (no scipy!)
+│   ├── start.bat                # Windows startup script
+│   └── test_devices.py          # Audio device testing
 │
-├── plugin/               # Obsidian plugin
-│   ├── src/
-│   │   ├── main.ts       # Plugin entry point
-│   │   ├── settings.ts   # Settings UI
-│   │   └── backendClient.ts  # API client
-│   ├── manifest.json     # Plugin manifest
-│   ├── package.json      # Node dependencies
-│   └── README.md
+├── plugin/                      # Obsidian plugin (pre-compiled!)
+│   ├── main.js                  # Plugin code (no build needed)
+│   ├── manifest.json            # Plugin manifest
+│   └── styles.css               # UI styles
 │
-├── REQUIREMENTS.md       # Detailed requirements
-└── README.md            # This file
+├── install.ps1                  # Automated installer
+├── install-simple.bat           # One-click installer
+├── test_api.html                # Backend API testing tool
+└── README.md                    # This file
 ```
 
 ## 🔧 Troubleshooting
@@ -149,27 +164,41 @@ Transcribe/
 ### Backend Won't Start
 
 ```bash
-# Check Python version
+# Check Python version (need 3.8+)
 python --version
 
-# Verify virtual environment
+# Reinstall dependencies
 cd backend
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
+pip install --only-binary :all: -r requirements.txt
 ```
 
-### Ollama Connection Failed
+### Whisper Model Not Loading
+
+The faster-whisper model downloads automatically on first use. If you see errors:
 
 ```bash
-# Check if Ollama is running
-ollama list
+# Test the whisper client
+cd backend
+venv\Scripts\python.exe whisper_client.py
+```
 
-# Verify model is installed
-ollama pull dimavz/whisper-tiny
+First-time setup may take a few minutes to download the small.en model (~244MB).
 
-# Test Ollama API
-curl http://localhost:11434/api/tags
+### Microphone Not Working
+
+1. **Open plugin settings** → Audio Device section
+2. **Click "Refresh Devices"** to reload microphone list
+3. **Select your microphone** from the dropdown
+4. **Test with manual recording** first (microphone icon)
+5. **Check browser console** (Ctrl+Shift+I) for errors
+
+If no devices show:
+```bash
+# Test audio device detection
+cd backend
+venv\Scripts\python.exe test_devices.py
 ```
 
 ### Plugin Not Loading
@@ -179,15 +208,25 @@ curl http://localhost:11434/api/tags
 3. Restart Obsidian
 4. Check Console for errors (Ctrl+Shift+I)
 
+### Wake Word Not Detecting
+
+1. Upgrade to a better model in `backend/service.py` (line 275):
+   ```python
+   init_whisper(model_size="medium.en")  # Better accuracy
+   ```
+2. Speak clearly and close to the microphone
+3. Use the correct phrases: **"Obsidian Note"** and **"Obsidian Stop"**
+4. Check the backend console - you'll see what it hears
+
 ### No Transcription / Empty Results
 
-1. Check backend is running: `http://localhost:8765/status`
-2. Verify microphone permissions
-3. Test backend manually:
+1. **Test backend status**: Open `test_api.html` in browser
+2. **Check backend is running**: Look for console window
+3. **Verify microphone permissions** in Windows Settings
+4. **Test API manually**:
    ```bash
-   curl -X POST http://localhost:8765/start-recording
-   # Speak for a few seconds
-   curl -X POST http://localhost:8765/stop-recording
+   curl http://localhost:8765/status
+   curl http://localhost:8765/audio-devices
    ```
 
 ## 🔄 Deployment to Second Computer
@@ -195,17 +234,20 @@ curl http://localhost:11434/api/tags
 ### Quick Deployment
 
 1. **Copy project folder** to second computer
-2. **Install Ollama** and pull model:
+2. **Run installer**:
    ```bash
-   ollama pull dimavz/whisper-tiny
+   .\install.ps1
    ```
+   Or just double-click `install-simple.bat`!
 3. **Start backend**:
    ```bash
    cd backend
    start.bat
    ```
-4. **Copy plugin** to Obsidian vault
+4. Plugin will be auto-installed if Obsidian vault is detected
 5. **Enable plugin** in Obsidian settings
+
+The faster-whisper model will download automatically on first use (no Ollama needed!).
 
 ### Sync Setup (Optional)
 
@@ -216,12 +258,16 @@ If you want to keep the plugin synced:
 
 ## 🚧 Future Enhancements
 
-- [ ] Wake word detection ("computer start note")
+- [x] Wake word detection ("Obsidian Note" / "Obsidian Stop") ✅
+- [x] Real-time streaming transcription ✅
+- [x] Microphone selection ✅
+- [ ] Customizable wake/stop phrases
 - [ ] Voice activity detection (auto-stop on silence)
 - [ ] Recording time display
 - [ ] Audio level indicator
 - [ ] Multiple output file support
 - [ ] Custom timestamp formats
+- [ ] GPU acceleration support
 
 ## 📝 Development
 
@@ -248,13 +294,16 @@ This is a personal project, but feel free to fork and modify for your own use!
 ## ❓ FAQ
 
 **Q: Does this work offline?**
-A: Yes! Everything runs locally - no internet required.
+A: Yes! Everything runs locally - no internet required after initial model download.
+
+**Q: Do I need Ollama?**
+A: No! The project previously used Ollama but now uses faster-whisper directly, which is more reliable and faster.
 
 **Q: How accurate is the transcription?**
-A: Using whisper-tiny, accuracy is good for clear speech. For better accuracy, you can use larger models like `whisper-small` or `whisper-base`.
+A: Using small.en model, accuracy is excellent for clear English speech. For even better accuracy, you can upgrade to medium.en or large model in `backend/service.py`.
 
 **Q: Can I use a different Whisper model?**
-A: Yes! Pull any Whisper model in Ollama and change the model name in settings.
+A: Yes! Edit line 275 in `backend/service.py` and change to: `tiny`, `base.en`, `small.en`, `medium.en`, or `large`.
 
 **Q: Do I need Node.js?**
 A: No! The plugin is pre-compiled. Just Python for the backend.
@@ -262,5 +311,14 @@ A: No! The plugin is pre-compiled. Just Python for the backend.
 **Q: Does it work on Mac/Linux?**
 A: Yes, though `start.bat` and `install.ps1` are Windows-specific. On Mac/Linux, manually activate venv and run `python service.py`.
 
-**Q: Can I change the wake word?**
-A: Wake word detection is planned for Phase 3. Currently using manual triggers only.
+**Q: Can I change the wake words?**
+A: Currently the wake phrases are fixed to "Obsidian Note" and "Obsidian Stop". Customization is planned for a future update.
+
+**Q: Does it support other languages?**
+A: Currently optimized for English. For other languages, change `language="en"` in `whisper_client.py` and use a non-English model.
+
+**Q: Why does transcription appear in chunks?**
+A: This is the real-time streaming feature! Audio is transcribed every 3 seconds so you can see your words appear as you speak.
+
+**Q: Can I use a Bluetooth microphone?**
+A: Yes! Any audio input device (USB, Bluetooth, virtual audio cable) can be selected in the plugin settings.

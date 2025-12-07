@@ -126,11 +126,13 @@ def audio_callback(indata, frames, time_info, status):
 def status():
     """Check service and Whisper status"""
     whisper_ready = whisper_client.check_health() if whisper_client else False
+    model_name = whisper_client.model_size if whisper_client else None
 
     return jsonify({
         'service': 'running',
-        'ollama_connected': whisper_ready,  # Keep same key for compatibility with plugin
+        'whisper_ready': whisper_ready,
         'model_available': whisper_ready,
+        'model_name': model_name,
         'is_recording': recording_state['is_recording'] or listen_mode_state['is_recording_from_wake'],
         'listen_mode_enabled': listen_mode_state['enabled'],
         'listen_mode_listening': listen_mode_state['is_listening'],
