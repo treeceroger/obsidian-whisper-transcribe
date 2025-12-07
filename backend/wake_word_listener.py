@@ -16,7 +16,9 @@ from whisper_client import WhisperClient
 class WakeWordListener:
     def __init__(self, whisper_client: WhisperClient,
                  wake_phrase: str = "computer take note",
-                 stop_phrase: str = "computer end note"):
+                 stop_phrase: str = "computer end note",
+                 streaming_mode: bool = True,
+                 device_id: int = None):
         """
         Initialize wake word listener
 
@@ -24,10 +26,14 @@ class WakeWordListener:
             whisper_client: WhisperClient instance for transcription
             wake_phrase: Phrase to start recording
             stop_phrase: Phrase to stop recording
+            streaming_mode: If True, transcribe and stream chunks in real-time
+            device_id: Audio input device ID (None = use default)
         """
         self.whisper_client = whisper_client
         self.wake_phrase = wake_phrase.lower()
         self.stop_phrase = stop_phrase.lower()
+        self.streaming_mode = streaming_mode
+        self.device_id = device_id
 
         self.is_listening = False
         self.is_recording = False
@@ -38,15 +44,17 @@ class WakeWordListener:
         self.sample_rate = 16000
         self.channels = 1
         self.chunk_duration = 3  # Process in 3-second chunks
-        
+
         # Buffers and Queues
         self.audio_queue = queue.Queue()
         self.full_recording_buffer = []  # Stores audio while in recording mode
-        
+        self.streaming_transcription = []  # Accumulates streamed chunks
+
         # Callbacks
         self.on_wake_detected = None
         self.on_stop_detected = None
         self.on_transcription_complete = None
+        self.on_chunk_transcribed = None  # New: for streaming chunks
 
     def start_listening(self):
         """Start continuous listening for wake word"""
@@ -58,6 +66,7 @@ class WakeWordListener:
         self.is_recording = False
         self.audio_queue = queue.Queue()
         self.full_recording_buffer = []
+        self.streaming_transcription = []
         
         # Start processing thread
         self.process_thread = threading.Thread(target=self._process_audio_queue, daemon=True)
@@ -66,6 +75,7 @@ class WakeWordListener:
         # Start audio stream
         try:
             self.audio_stream = sd.InputStream(
+                device=self.device_id,  # Use specified device or default
                 channels=self.channels,
                 samplerate=self.sample_rate,
                 callback=self._audio_callback,
@@ -73,7 +83,8 @@ class WakeWordListener:
                 blocksize=int(self.sample_rate * 0.5)  # 0.5s blocks for responsiveness
             )
             self.audio_stream.start()
-            print(f"[WAKE WORD] Started listening for '{self.wake_phrase}'")
+            device_name = "default" if self.device_id is None else f"device {self.device_id}"
+            print(f"[WAKE WORD] Started listening for '{self.wake_phrase}' on {device_name}")
         except Exception as e:
             print(f"[WAKE WORD] Error starting audio stream: {e}")
             self.is_listening = False
@@ -151,6 +162,7 @@ class WakeWordListener:
             print(f"[WAKE WORD] Wake phrase detected!")
             self.is_recording = True
             self.full_recording_buffer = [] # Start fresh recording
+            self.streaming_transcription = []  # Reset streaming buffer
             if self.on_wake_detected:
                 self.on_wake_detected()
 
@@ -159,16 +171,49 @@ class WakeWordListener:
             print(f"[WAKE WORD] Stop phrase detected!")
             self.is_recording = False
 
-            # Get full transcription of recorded audio
-            full_transcription = self._process_recording()
-
             if self.on_stop_detected:
                 self.on_stop_detected()
 
-            if self.on_transcription_complete and full_transcription:
-                self.on_transcription_complete(full_transcription)
+            # In streaming mode, we've already sent chunks, just signal completion
+            if self.streaming_mode:
+                if self.on_transcription_complete:
+                    # Send final aggregated transcription (optional, for reference)
+                    full_text = " ".join(self.streaming_transcription)
+                    self.on_transcription_complete(self._clean_transcription(full_text))
+            else:
+                # Batch mode: Get full transcription of recorded audio
+                full_transcription = self._process_recording()
+                if self.on_transcription_complete and full_transcription:
+                    self.on_transcription_complete(full_transcription)
 
             self.full_recording_buffer = []
+            self.streaming_transcription = []
+
+        # During recording: handle chunk streaming
+        elif self.is_recording:
+            if self.streaming_mode and self.on_chunk_transcribed:
+                # Clean the chunk (remove wake/stop phrases if present)
+                clean_chunk = transcription_lower.replace(self.wake_phrase, '').replace(self.stop_phrase, '').strip()
+                if clean_chunk:
+                    self.streaming_transcription.append(clean_chunk)
+                    # Emit chunk in real-time
+                    print(f"[WAKE WORD] Streaming chunk: {clean_chunk}")
+                    self.on_chunk_transcribed(clean_chunk)
+
+    def _clean_transcription(self, text: str) -> str:
+        """Remove wake and stop phrases from transcription and capitalize"""
+        if not text:
+            return ""
+
+        # Remove the wake phrase
+        text = text.lower().replace(self.wake_phrase, '').strip()
+        # Remove the stop phrase
+        text = text.replace(self.stop_phrase, '').strip()
+        # Capitalize first letter
+        if text:
+            text = text[0].upper() + text[1:]
+
+        return text
 
     def _transcribe_chunk(self, audio_chunk: np.ndarray) -> str:
         """Transcribe a small audio chunk"""
@@ -247,7 +292,7 @@ if __name__ == "__main__":
     # Test wake word listener
     from whisper_client import WhisperClient
 
-    whisper = WhisperClient(model_size="base.en")
+    whisper = WhisperClient(model_size="small.en")
     listener = WakeWordListener(whisper)
 
     def on_wake():

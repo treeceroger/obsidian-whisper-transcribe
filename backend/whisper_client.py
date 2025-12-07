@@ -8,12 +8,12 @@ import os
 
 
 class WhisperClient:
-    def __init__(self, model_size: str = "base.en", device: str = "cpu"):
+    def __init__(self, model_size: str = "small.en", device: str = "cpu"):
         """
         Initialize Faster-Whisper client
 
         Args:
-            model_size: Model size (tiny, base, small, medium, large)
+            model_size: Model size (tiny, base.en, small.en, medium.en, large)
             device: Device to run on (cpu or cuda)
         """
         self.model_size = model_size

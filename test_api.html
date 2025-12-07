@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Transcription Backend API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        .result {
+            background: #f0f0f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .error {
+            background: #ffdddd;
+            color: #cc0000;
+        }
+        .success {
+            background: #ddffdd;
+            color: #006600;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend API Test</h1>
+
+    <h2>Test Audio Devices Endpoint</h2>
+    <button onclick="testAudioDevices()">Get Audio Devices</button>
+    <div id="devices-result" class="result"></div>
+
+    <h2>Test Status Endpoint</h2>
+    <button onclick="testStatus()">Get Status</button>
+    <div id="status-result" class="result"></div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:8765';
+
+        async function testAudioDevices() {
+            const resultDiv = document.getElementById('devices-result');
+            resultDiv.textContent = 'Loading...';
+            resultDiv.className = 'result';
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/audio-devices`);
+                const data = await response.json();
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+                console.log('Audio devices:', data);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `Error: ${error.message}\n\nMake sure the backend is running (run backend\\start.bat)`;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testStatus() {
+            const resultDiv = document.getElementById('status-result');
+            resultDiv.textContent = 'Loading...';
+            resultDiv.className = 'result';
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/status`);
+                const data = await response.json();
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+                console.log('Status:', data);
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `Error: ${error.message}\n\nMake sure the backend is running (run backend\\start.bat)`;
+                console.error('Error:', error);
+            }
+        }
+
+        // Auto-test on load
+        window.onload = () => {
+            console.log('Page loaded, testing endpoints...');
+            testStatus();
+        };
+    </script>
+</body>
+</html>
